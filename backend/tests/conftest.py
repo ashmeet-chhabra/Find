@@ -13,7 +13,8 @@ import sqlalchemy
 # ---------------------------------------------------------------------------
 # 1. Point DATABASE_URL at SQLite so no psycopg2 is needed.
 # ---------------------------------------------------------------------------
-# Hard-pin to safe test values so external env vars cannot point tests at real services.
+# Hard-pin these so tests never accidentally hit real DB/Redis/MinIO even if
+# those env vars are set in the host environment.
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
 os.environ["MINIO_ENDPOINT"] = "localhost:9000"

@@ -80,9 +80,6 @@ def _fresh_db():
 
 import sys
 
-# Pre-populate the gallery module namespace with our FakeMedia
-# by patching the module's Media reference after import.
-
 # First import — pgvector is already mocked in conftest.py
 import find_api.routers.gallery as gallery_module
 

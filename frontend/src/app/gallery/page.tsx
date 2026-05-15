@@ -18,7 +18,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ImagePreviewModal } from "@/components/image-preview-modal";
 import { StatusIndicator } from "@/components/status-indicator";
-import { toast } from "sonner";
 import {
   deleteImage,
   type GalleryResponse,
@@ -28,6 +27,7 @@ import {
   toggleLike,
 } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media";
+import { toast } from "sonner";
 
 export default function GalleryPage() {
   const [page, setPage] = useState(1);
@@ -122,10 +122,10 @@ export default function GalleryPage() {
     onSuccess: ({ media_id }) => {
       queryClient.invalidateQueries({ queryKey: ["gallery"] });
       queryClient.invalidateQueries({ queryKey: ["image-detail", media_id] });
-      toast.success("Image queued for reprocessing.");
+      toast.success("Retry queued — analysis will restart shortly.");
     },
     onError: () => {
-      toast.error("Retry failed. The image may not be eligible or the queue is unavailable.");
+      toast.error("Retry failed. The queue may be unavailable — please try again.");
     },
   });
 

@@ -1,14 +1,14 @@
 /**
  * Frontend tests for the reprocess/retry-analysis feature.
  *
- * Uses Vitest only (no DOM/rendering needed — pure logic + API mock tests).
+ * Uses Vitest only — no DOM/React renderer needed for these unit tests.
  *
- * Install test dependency (one-time):
+ * Install test dependencies (one-time):
  *   pnpm add -D vitest
  *
  * Run with:
- *   pnpm test                               # runs all tests via npm script
- *   pnpm vitest run src/__tests__/reprocess.test.ts  # run this file only
+ *   pnpm test                                         # runs all tests
+ *   pnpm vitest run src/__tests__/reprocess.test.ts   # run this file only
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -104,30 +104,36 @@ describe("retry-button eligibility", () => {
 // ---------------------------------------------------------------------------
 
 describe("gallery card retry visibility", () => {
-  /** Mirrors gallery/page.tsx: show RotateCcw for failed or indexed-with-no-caption */
-  function galleryCardShowsRetry(status: string, caption?: string): boolean {
+  /**
+   * Mirrors gallery/page.tsx — aligned with modal:
+   * show RotateCcw for failed OR (indexed && no caption).
+   */
+  function galleryCardShowsRetry(
+    status: string,
+    caption: string | undefined,
+  ): boolean {
     return status === "failed" || (status === "indexed" && !caption);
   }
 
   it("shows retry button in gallery card for failed status", () => {
-    expect(galleryCardShowsRetry("failed")).toBe(true);
+    expect(galleryCardShowsRetry("failed", undefined)).toBe(true);
   });
 
-  it("shows retry button in gallery card for indexed status with no caption", () => {
+  it("shows retry button in gallery card for indexed with no caption", () => {
     expect(galleryCardShowsRetry("indexed", undefined)).toBe(true);
     expect(galleryCardShowsRetry("indexed", "")).toBe(true);
   });
 
-  it("does not show retry button in gallery card for indexed status with caption", () => {
+  it("does not show retry button in gallery card for indexed with caption", () => {
     expect(galleryCardShowsRetry("indexed", "a dog on a bench")).toBe(false);
   });
 
   it("does not show retry button in gallery card for pending status", () => {
-    expect(galleryCardShowsRetry("pending")).toBe(false);
+    expect(galleryCardShowsRetry("pending", undefined)).toBe(false);
   });
 
   it("does not show retry button in gallery card for processing status", () => {
-    expect(galleryCardShowsRetry("processing")).toBe(false);
+    expect(galleryCardShowsRetry("processing", undefined)).toBe(false);
   });
 });
 

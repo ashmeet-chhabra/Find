@@ -198,10 +198,6 @@ def reprocess_image(media_id: int, db: Session = Depends(get_db)):
             "Reprocess is only available for failed images or indexed images with incomplete metadata.",
         )
 
-    prev_status = media.status
-    prev_error = media.error_message
-    prev_processed_at = media.processed_at
-
     media.status = "pending"
     media.error_message = None
     media.processed_at = None
@@ -212,12 +208,8 @@ def reprocess_image(media_id: int, db: Session = Depends(get_db)):
         )
         db.commit()
     except Exception as exc:  # noqa: BLE001
-        media.status = prev_status
-        media.error_message = prev_error
-        media.processed_at = prev_processed_at
         db.rollback()
-        logger.error("Failed to enqueue reprocess for media %s: %s", media.id, exc)
-        raise HTTPException(503, "Reprocess queue is unavailable. Please retry later.") from exc
+        raise HTTPException(503, "Reprocess queue is unavailable. Please retry.") from exc
 
     logger.info("Requeued analysis for media %s (job %s)", media.id, job.id)
 
