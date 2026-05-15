@@ -257,13 +257,31 @@ export default function GalleryPage() {
           <div className="w-full">
             <div className="frost-panel mx-auto rounded-3xl px-8 py-16 text-center">
               <ImageOff className="mx-auto mb-4 h-12 w-12 text-[#5f6568]" />
-              <p className="mb-2 text-[#f0f0f0]">No images found</p>
-              <Link
-                href="/upload"
-                className="text-sm text-[#3b9eff] hover:underline"
-              >
-                Upload your first images
-              </Link>
+              {likedOnly ? (
+                <>
+                  <p className="mb-2 text-[#f0f0f0]">No liked images yet</p>
+                  <p className="mb-4 text-sm text-[#a1a4a5]">
+                    Like an image to save it here.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLikedOnly(false)}
+                    className="text-sm text-[#3b9eff] hover:underline"
+                  >
+                    View all images
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="mb-2 text-[#f0f0f0]">No images found</p>
+                  <Link
+                    href="/upload"
+                    className="text-sm text-[#3b9eff] hover:underline"
+                  >
+                    Upload your first images
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         )}
