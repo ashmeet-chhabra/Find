@@ -47,9 +47,15 @@ class FakeMedia(Base):
     liked: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[str] = mapped_column(String(50), default="pending")
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
-    updated_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
-    processed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    updated_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    processed_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
     width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     exif_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
@@ -123,8 +129,8 @@ def make_media(*, status: str, metadata_json=None, error_message=None) -> FakeMe
 # Tests
 # ---------------------------------------------------------------------------
 
-class TestReprocessEndpoint:
 
+class TestReprocessEndpoint:
     @patch("find_api.routers.gallery.get_task_queue")
     def test_reprocess_failed_image_returns_queued(self, mock_queue, client):
         """Failed image is accepted; response contains job_id and status=queued."""
@@ -223,6 +229,7 @@ class TestReprocessEndpoint:
         mock_queue_instance.enqueue.assert_called_once()
         call_args = mock_queue_instance.enqueue.call_args
         from find_api.workers.jobs import analyze_image
+
         assert call_args[0][0] is analyze_image
         assert call_args[0][1] == media.id
 
@@ -248,5 +255,3 @@ class TestReprocessEndpoint:
 
         r2 = client.post(f"/api/image/{media.id}/reprocess")
         assert r2.status_code == 200
-
-

@@ -38,8 +38,6 @@ describe("reprocessImage API function", () => {
   it("calls POST /api/image/:id/reprocess and returns the response", async () => {
     const { reprocessImage } = await import("../lib/api");
 
-    const { reprocessImage } = await import("../lib/api");
-
     const mockResponse = {
       data: {
         media_id: 42,

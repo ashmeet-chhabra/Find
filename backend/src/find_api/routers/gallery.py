@@ -209,7 +209,9 @@ def reprocess_image(media_id: int, db: Session = Depends(get_db)):
         db.commit()
     except Exception as exc:  # noqa: BLE001
         db.rollback()
-        raise HTTPException(503, "Reprocess queue is unavailable. Please retry.") from exc
+        raise HTTPException(
+            503, "Reprocess queue is unavailable. Please retry."
+        ) from exc
 
     logger.info("Requeued analysis for media %s (job %s)", media.id, job.id)
 
