@@ -4,10 +4,10 @@ Gallery endpoint for browsing images
 
 import json
 import logging
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from typing import Optional
 
 from find_api.core.config import settings
 from find_api.core.database import get_db
@@ -20,6 +20,8 @@ from find_api.workers.jobs import analyze_image
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+GalleryStatus = Literal["pending", "processing", "indexed", "failed"]
 
 
 def normalize_metadata(value):
@@ -38,7 +40,10 @@ def normalize_metadata(value):
 def get_gallery(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    status: Optional[str] = None,
+    status: Optional[GalleryStatus] = Query(
+        None,
+        description="Filter by processing status",
+    ),
     liked: Optional[bool] = None,
     db: Session = Depends(get_db),
 ):

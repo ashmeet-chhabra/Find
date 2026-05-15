@@ -1,70 +1,113 @@
+"""Shared fixtures for backend API tests.
+
+Uses in-memory SQLite with StaticPool and patches external services
+(MinIO, Redis/RQ) so tests run without any infrastructure.
 """
-conftest.py – patch heavy dependencies before find_api is imported.
 
-Sets a SQLite DATABASE_URL so no PostgreSQL/psycopg2 is needed, and stubs
-out pgvector (which requires a live Postgres extension) and MinIO storage.
-"""
+from __future__ import annotations
 
-import sys
-import os
-from unittest.mock import MagicMock
-import sqlalchemy
+from contextlib import asynccontextmanager
+from unittest.mock import MagicMock, patch
 
-# ---------------------------------------------------------------------------
-# 1. Point DATABASE_URL at SQLite so no psycopg2 is needed.
-# ---------------------------------------------------------------------------
-# Hard-pin these so tests never accidentally hit real DB/Redis/MinIO even if
-# those env vars are set in the host environment.
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-os.environ["REDIS_URL"] = "redis://localhost:6379/0"
-os.environ["MINIO_ENDPOINT"] = "localhost:9000"
-os.environ["MINIO_ACCESS_KEY"] = "minioadmin"
-os.environ["MINIO_SECRET_KEY"] = "minioadmin"
-os.environ["MINIO_BUCKET"] = "find-images"
+import pytest
+from sqlalchemy import JSON, Text, create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # ---------------------------------------------------------------------------
-# 2. Patch create_engine to strip kwargs unsupported by SQLite (pool_size,
-#    max_overflow) so database.py module-level call succeeds.
+# Patch PostgreSQL-only column types before any model is imported.
+# Stopped explicitly in the _stop_patches fixture below.
 # ---------------------------------------------------------------------------
-_orig_create_engine = sqlalchemy.create_engine
+_patches = [
+    patch("pgvector.sqlalchemy.Vector", lambda dim: Text()),
+    patch("sqlalchemy.dialects.postgresql.ARRAY", lambda item_type: JSON()),
+]
+for p in _patches:
+    p.start()
+
+from fastapi.testclient import TestClient  # noqa: E402
+from find_api.core.database import Base, get_db  # noqa: E402
+from find_api.main import app  # noqa: E402
 
 
-def _sqlite_safe_create_engine(url, **kwargs):
-    kwargs.pop("pool_size", None)
-    kwargs.pop("max_overflow", None)
-    kwargs.setdefault("connect_args", {"check_same_thread": False})
-    return _orig_create_engine(url, **kwargs)
+# ---------------------------------------------------------------------------
+# In-memory SQLite engine with StaticPool.
+# StaticPool reuses one connection so the in-memory DB is visible across
+# the test thread and the ASGI app thread (TestClient runs a second thread).
+# ---------------------------------------------------------------------------
+_engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+_TestSession = sessionmaker(bind=_engine)
+Base.metadata.create_all(bind=_engine)
 
 
-sqlalchemy.create_engine = _sqlite_safe_create_engine  # type: ignore[assignment]
+@asynccontextmanager
+async def _noop_lifespan(_app):
+    """Skip real init_db / init_storage during tests."""
+    yield
 
-# ---------------------------------------------------------------------------
-# 3. Stub pgvector before SQLAlchemy tries to use the Vector column type.
-# ---------------------------------------------------------------------------
-pgvector_mock = MagicMock()
-pgvector_mock.sqlalchemy.Vector = MagicMock(return_value=MagicMock())
-sys.modules.setdefault("pgvector", pgvector_mock)
-sys.modules.setdefault("pgvector.sqlalchemy", pgvector_mock.sqlalchemy)
 
-# ---------------------------------------------------------------------------
-# 4. Stub minio so storage.py doesn't fail at import.
-# ---------------------------------------------------------------------------
-minio_mock = MagicMock()
-minio_error_mock = MagicMock()
-minio_error_mock.S3Error = Exception
-sys.modules.setdefault("minio", minio_mock)
-sys.modules.setdefault("minio.error", minio_error_mock)
+@pytest.fixture(scope="session", autouse=True)
+def _stop_patches():
+    """Stop module-level patches after the test session ends."""
+    yield
+    for p in _patches:
+        p.stop()
 
-# ---------------------------------------------------------------------------
-# 5. Stub rq so queue.py doesn't fail without a Redis connection at import.
-# ---------------------------------------------------------------------------
-rq_mock = MagicMock()
-sys.modules.setdefault("rq", rq_mock)
-sys.modules.setdefault("rq.job", rq_mock)
 
-# ---------------------------------------------------------------------------
-# 6. Stub redis so queue.py can import Redis without the real package.
-# ---------------------------------------------------------------------------
-redis_mock = MagicMock()
-redis_mock.Redis = MagicMock()
-sys.modules.setdefault("redis", redis_mock)
+@pytest.fixture()
+def db():
+    """Provide a clean database for each test."""
+    Base.metadata.drop_all(bind=_engine)
+    Base.metadata.create_all(bind=_engine)
+    session = _TestSession()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture()
+def client(db):
+    """TestClient with mocked storage and queue dependencies."""
+
+    def _override_db():
+        """Create a fresh session per request (thread-safe)."""
+        session = _TestSession()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    original_lifespan = app.router.lifespan_context
+    app.dependency_overrides[get_db] = _override_db
+    app.router.lifespan_context = _noop_lifespan
+
+    fake_job = MagicMock(id="test-job-123")
+    fake_queue = MagicMock()
+    fake_queue.enqueue.return_value = fake_job
+
+    try:
+        with (
+            patch(
+                "find_api.routers.upload.upload_file", return_value="images/ab/abc.jpg"
+            ),
+            patch("find_api.routers.upload.get_task_queue", return_value=fake_queue),
+            patch(
+                "find_api.routers.gallery.get_file_url",
+                return_value="http://fake/img.jpg",
+            ),
+            patch("find_api.routers.gallery.delete_file"),
+            patch(
+                "find_api.routers.search.get_file_url",
+                return_value="http://fake/img.jpg",
+            ),
+        ):
+            with TestClient(app) as c:
+                yield c
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        app.router.lifespan_context = original_lifespan

@@ -483,9 +483,21 @@ export default function UploadPage() {
                       </p>
                     </div>
 
-                    <span className={getStatusClasses(result)}>
-                      {displayStatus}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={getStatusClasses(result)}>
+                        {displayStatus}
+                      </span>
+
+                      {result.status === "duplicate" &&
+                        result.media_id != null && (
+                          <Link
+                            href={`/gallery?media=${result.media_id}`}
+                            className="text-xs text-[#3b9eff] hover:underline"
+                          >
+                            View existing
+                          </Link>
+                        )}
+                    </div>
                   </div>
                 );
               })}
