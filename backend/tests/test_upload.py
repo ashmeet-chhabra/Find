@@ -1,4 +1,13 @@
-"""Tests for POST /api/upload — response shape and invalid input."""
+import io
+from PIL import Image
+
+
+def get_valid_image_bytes():
+    """Generate a 1x1 valid PNG for testing."""
+    img = Image.new("RGB", (1, 1), color="red")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 class TestUploadSuccess:
@@ -7,7 +16,7 @@ class TestUploadSuccess:
     def test_single_image(self, client):
         response = client.post(
             "/api/upload",
-            files=[("files", ("photo.png", b"fake-image-bytes", "image/png"))],
+            files=[("files", ("photo.png", get_valid_image_bytes(), "image/png"))],
         )
 
         assert response.status_code == 200
@@ -23,7 +32,7 @@ class TestUploadSuccess:
         assert "job_id" in result
 
     def test_duplicate_returns_duplicate_status(self, client):
-        data = b"same-image-bytes"
+        data = get_valid_image_bytes()
         first = client.post(
             "/api/upload",
             files=[("files", ("a.png", data, "image/png"))],
@@ -46,6 +55,15 @@ class TestUploadInvalid:
             files=[("files", ("readme.txt", b"hello", "text/plain"))],
         )
         assert response.status_code == 400
+
+    def test_corrupted_image_rejected(self, client):
+        """Even if mime is image/png, invalid bytes should be rejected."""
+        response = client.post(
+            "/api/upload",
+            files=[("files", ("corrupted.png", b"not-a-real-image", "image/png"))],
+        )
+        assert response.status_code == 400
+        assert "corrupted" in response.json()["detail"].lower()
 
     def test_missing_files_returns_422(self, client):
         response = client.post("/api/upload")
