@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import {
+  extractErrorMessage,
   getJobStatus,
   type JobStatus,
   type UploadResponse,
@@ -117,8 +118,8 @@ export default function UploadPage() {
         `Queued ${data.total} file${data.total === 1 ? "" : "s"} for analysis`,
       );
     },
-    onError: () => {
-      toast.error("Upload failed");
+    onError: (error) => {
+      toast.error(extractErrorMessage(error, "Upload failed"));
     },
   });
 
@@ -130,14 +131,24 @@ export default function UploadPage() {
       const uploadedCount = data.results.filter(
         (item) => item.status === "uploaded",
       ).length;
+      const failedResults = data.results.filter(
+        (item) => item.status === "failed" && item.error,
+      );
       toast.success(
         `Archive accepted (${uploadedCount} new upload${
           uploadedCount === 1 ? "" : "s"
         })`,
       );
+      if (failedResults.length > 0) {
+        toast.error(
+          failedResults.length === 1
+            ? failedResults[0]?.error
+            : `${failedResults.length} files failed. ${failedResults[0]?.error}`,
+        );
+      }
     },
-    onError: () => {
-      toast.error("Bulk upload failed");
+    onError: (error) => {
+      toast.error(extractErrorMessage(error, "Bulk upload failed"));
     },
   });
 
@@ -348,6 +359,7 @@ export default function UploadPage() {
           <div className="frost-panel flex rounded-full p-1">
             <button
               type="button"
+              aria-pressed={mode === "single"}
               onClick={() => setMode("single")}
               className={`rounded-full px-5 py-2 text-sm font-medium transition ${
                 mode === "single"
@@ -359,6 +371,7 @@ export default function UploadPage() {
             </button>
             <button
               type="button"
+              aria-pressed={mode === "bulk"}
               onClick={() => setMode("bulk")}
               className={`rounded-full px-5 py-2 text-sm font-medium transition ${
                 mode === "bulk"
